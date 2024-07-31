@@ -30,7 +30,7 @@ type baseStationDB struct {
 type latLng struct {
 	Id  int64   `json:"id"`
 	Lat float64 `json:"lat"`
-	Lng float64 `json:"Lng"`
+	Lng float64 `json:"lng"`
 }
 
 func (tp latLng) GetCoordinates() *cluster.GeoCoordinates {
@@ -68,7 +68,7 @@ func createCluster(baseStations []model.BaseStation) *cluster.Cluster {
 		}
 	}
 
-	c, err := cluster.New(coords, cluster.WithPointSize(32), cluster.WithPointSize(64))
+	c, err := cluster.New(coords, cluster.WithinZoom(0, 15))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -169,9 +169,17 @@ func (bs *baseStationDB) GetClusters(ctx context.Context, n float64, w float64, 
 		}
 	}
 
-	nw := latLng{Lat: n, Lng: w}
-	se := latLng{Lat: s, Lng: e}
-	points, err := bs.clusterProvider.GetClusters(nw, se, int(zoom), -1)
+	var points []cluster.Point
+	if zoom >= 15 {
+		query := `select id, st_x(coordinates) as X, st_y(coordinates) as Y, 1 as NumPoints from "BaseStations" where st_x(coordinates) > :w and st_x(coordinates) < :e and st_y(coordinates) > :s and st_y(coordinates) < :n`
+		if err = dbutils.NamedSelect(ctx, bs.dbh, &points, query, map[string]interface{}{"n": n, "w": w, "s": s, "e": e}); err != nil {
+			return nil, err
+		}
+	} else {
+		nw := latLng{Lat: n, Lng: w}
+		se := latLng{Lat: s, Lng: e}
+		points, _ = bs.clusterProvider.GetClusters(nw, se, int(zoom), -1)
+	}
 	zoomInfo = &ZoomInfo{
 		Zoom: int(zoom),
 		NW:   []float64{n, w},
