@@ -115,7 +115,8 @@ func (bs *baseStationDB) Update(ctx context.Context, id uint64, station *model.B
 func (bs *baseStationDB) GetBaseStationById(ctx context.Context, id uint64) (*model.BaseStation, error) {
 	logger := logging.FromContext(ctx)
 	logger.Debugw("get base station by id", id)
-	query := `select * from "BaseStations" where id = :Id limit 1`
+	query := `select elevation_angle, id, lac_tac, cid, sector_number, azimuth, height, power, using_start, using_stop, 
+       		  address, st_asewkb(coordinates) as coordinates, region, comment from "BaseStations" where id = :Id limit 1`
 	var baseStations []model.BaseStation
 	if err := dbutils.NamedSelect(ctx, bs.dbh, &baseStations, query, map[string]interface{}{"Id": id}); err != nil {
 		return nil, err
@@ -123,16 +124,28 @@ func (bs *baseStationDB) GetBaseStationById(ctx context.Context, id uint64) (*mo
 	if len(baseStations) != 0 {
 		query = `select "Operators".* from "OperatorsBs" inner join "Operators" on "OperatorsBs".operator = "Operators".id where "OperatorsBs".bs = :Bs`
 		var operators []model.Operator
-		if err := dbutils.NamedSelect(ctx, bs.dbh, &operators, query, map[string]interface{}{"Bs": id}); err != nil {
+		if err := dbutils.NamedSelect(ctx, bs.dbh, &operators, query, map[string]interface{}{"Bs": id}); err == nil {
 			baseStations[0].Operators = operators
 		}
 		query = `select * from "Region" where id = :RegionId limit 1`
 		var regions []model.Region
-		if err := dbutils.NamedSelect(ctx, bs.dbh, &regions, query, map[string]interface{}{"RegionId": baseStations[0].RegionId}); err != nil {
+		if err := dbutils.NamedSelect(ctx, bs.dbh, &regions, query, map[string]interface{}{"RegionId": baseStations[0].RegionId}); err == nil {
 			if len(regions) != 0 {
 				baseStations[0].Region = regions[0]
 			}
 		}
+		// Todo: Net dannih blya ) to load additional data from db (tablitsa svyazi empty);
+		//query = `select "arfcn".arfcn_number, "CellularNetworkType".type from "BsArfcns"
+		//			inner join "arfcn" on "BsArfcns".arfcn = arfcn.id
+		//			inner join "CellularNetworkType" on arfcn."CellularNetworkType" = "CellularNetworkType".id
+		//			inner join public.modulation m on arfcn.modulation = m.id where bs = 1
+		//		`
+		//var arfcns []model.Arfcn
+		//if err := dbutils.NamedSelect(ctx, bs.dbh, &arfcns, query, map[string]interface{}{"Id": id}); err == nil {
+		//	if len(arfcns) != 0 {
+		//		baseStations[0].Arfcn = arfcns
+		//	}
+		//}
 
 		return &baseStations[0], nil
 	}
@@ -171,6 +184,7 @@ func (bs *baseStationDB) GetClusters(ctx context.Context, n float64, w float64, 
 
 	nw := latLng{Lat: n, Lng: w}
 	se := latLng{Lat: s, Lng: e}
+
 	points, err := bs.clusterProvider.GetClusters(nw, se, int(zoom), -1)
 	zoomInfo = &ZoomInfo{
 		Zoom: int(zoom),

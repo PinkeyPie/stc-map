@@ -11,7 +11,7 @@ jwt:
   secret: secret-key
   sessionTime: 86400s
 db:
-  dataSourceName: "postgres://postgres:stcspb@172.16.48.2/observer?sslmode=disable"
+  dataSourceName: "postgres://postgres:stcspb@localhost/observer?sslmode=disable"
   logLevel: 1
   migrate:
     enable: false

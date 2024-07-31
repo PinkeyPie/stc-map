@@ -17,6 +17,8 @@ import (
 	"simpleServer/internal/cache"
 	"simpleServer/internal/config"
 	"simpleServer/internal/database"
+	"simpleServer/internal/heatmap"
+	heatmapDB "simpleServer/internal/heatmap/database"
 	"simpleServer/internal/post"
 	postDB "simpleServer/internal/post/database"
 	"simpleServer/pkg/logging"
@@ -54,12 +56,15 @@ func runApplication() {
 			cache.NewCacheProvider,
 			baseStationDB.NewBaseStationDB,
 			postDB.NewPostDB,
+			heatmapDB.NewHeatmapDB,
 			post.NewHandler,
+			heatmap.NewHandler,
 			baseStation.NewHandler,
 			newServer),
 		fx.Invoke(
 			baseStation.RouteV1,
 			post.RouteV1,
+			heatmap.RouteV1,
 			func(r *gin.Engine) {},
 		),
 	)

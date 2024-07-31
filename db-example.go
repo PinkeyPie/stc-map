@@ -16,7 +16,7 @@ import (
 	"time"
 )
 
-var conn = flag.String("conn", "postgres://postgres:stcspb@172.16.48.2/observer?sslmode=disable", "database connection string")
+var conn = flag.String("conn", "postgres://postgres:stcspb@localhost/observer?sslmode=disable", "database connection string")
 
 type pgxLogger struct{}
 

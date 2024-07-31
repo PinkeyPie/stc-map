@@ -28,7 +28,7 @@ func (h *Handler) GetCluster(c *gin.Context) {
 	handler.HandleRequest(c, func(c *gin.Context) *handler.Response {
 		logger := logging.FromContext(c)
 		type RequestUri struct {
-			id int64 `uri:"id"`
+			Id *uint64 `uri:"id" binding:"required"`
 		}
 		var uri RequestUri
 		if err := c.ShouldBindUri(&uri); err != nil {
@@ -41,7 +41,7 @@ func (h *Handler) GetCluster(c *gin.Context) {
 		}
 
 		ctx := context.Background()
-		bs, err := h.baseStationDB.GetBaseStationById(ctx, uint64(uri.id))
+		bs, err := h.baseStationDB.GetBaseStationById(ctx, *uri.Id)
 		if err != nil {
 			logger.Errorf("baseStations.GetCluster failed to cluster", "err", err)
 			return handler.NewInternalErrorResponse(fmt.Errorf("Can't obtain clusters"))
@@ -79,6 +79,34 @@ func (h *Handler) GetClusters(c *gin.Context) {
 	})
 }
 
+func (h *Handler) GetBaseStationById(c *gin.Context) {
+	handler.HandleRequest(c, func(c *gin.Context) *handler.Response {
+		logger := logging.FromContext(c)
+		type RequestUri struct {
+			Id uint64 `uri:"id"`
+		}
+
+		var uri RequestUri
+		if err := c.ShouldBindUri(&uri); err != nil {
+			logger.Errorf("baseStations.GetBaseStationById failed to bind", "err", err)
+			var details []*validate.ValidationErrDetail
+			if vErrs, ok := err.(validator.ValidationErrors); ok {
+				details = validate.ValidationErrorDetails(&uri, "uri", vErrs)
+			}
+			return handler.NewErrorResponse(http.StatusBadRequest, handler.InvalidUriValue, "invalid id", details)
+		}
+		logger.Debugw("Id = %d", uri.Id)
+
+		bs, err := h.baseStationDB.GetBaseStationById(c.Request.Context(), uri.Id)
+
+		if err != nil || bs == nil {
+			logger.Errorf("baseStations.GetBaseStationById failed to cluster", "err", err)
+			return handler.NewInternalErrorResponse(fmt.Errorf("Can't get base station"))
+		}
+		return handler.NewSuccessResponse(http.StatusOK, NewBaseStationResponse(bs))
+	})
+}
+
 func RouteV1(cfg *config.Config, h *Handler, r *gin.Engine) {
 	v1 := r.Group("v1/api")
 	v1.Use(middleware.CorsMiddleware(), middleware.RequestIDMiddleware(), middleware.TimeoutMiddleware(cfg.ServerConfig.WriteTimeout))
@@ -87,6 +115,6 @@ func RouteV1(cfg *config.Config, h *Handler, r *gin.Engine) {
 	baseStationV1.Use()
 	{
 		baseStationV1.GET("/nw/:n/:w/se/:s/:e/zoom/:zoom", h.GetClusters)
-		baseStationV1.GET("/id/:id", h.GetCluster)
+		baseStationV1.GET("/id/:id", h.GetBaseStationById)
 	}
 }

@@ -10,7 +10,7 @@ import (
 )
 
 type BaseStation struct {
-	ID             uint64     `db:"id"`
+	ID             int        `db:"id"`
 	ElevationAngle int16      `db:"elevation_angle"`
 	LacTac         int32      `db:"lac_tac"`
 	Cid            int32      `db:"cid"`
@@ -25,14 +25,14 @@ type BaseStation struct {
 	RegionId       uuid.UUID  `db:"region"`
 	Comment        *string    `db:"comment"`
 	Operators      []Operator
+	Arfcn          []Arfcn
+	Modulation     []Modulation
 	Region         Region
 }
-
 type Region struct {
 	ID   uuid.UUID `db:"id"`
 	Name string    `db:"name"`
 }
-
 type Operator struct {
 	ID           uuid.UUID `db:"id"`
 	Name         string    `db:"name"`
@@ -40,16 +40,32 @@ type Operator struct {
 	Mnc          int16     `db:"mnc"`
 	BaseStations []BaseStation
 }
-
 type OperatorBs struct {
 	operator uuid.UUID `db:"operator"`
 	bs       uint64    `db:"bs"`
 }
-
 type Waypoint struct {
 	ID       int             `json:"id"`
 	Name     string          `json:"name"`
 	Geometry json.RawMessage `json:"geometry"`
+}
+type Arfcn struct {
+	ID                   uuid.UUID `db:"id"`
+	ArfcnNumber          int64     `db:"arfcn_number"`
+	Uplink               float32   `db:"uplink"`
+	Downlink             float32   `db:"downlink"`
+	Bandwidth            float32   `db:"bandwidth"`
+	Band                 string    `db:"band"`
+	Modulations          []Modulation
+	CellularNetworkTypes []CellularNetworkType
+}
+type Modulation struct {
+	ID   uuid.UUID `db:"id"`
+	Type string    `db:"type"`
+}
+type CellularNetworkType struct {
+	ID   uuid.UUID `db:"id"`
+	Type string    `db:"type"`
 }
 
 func (bs *BaseStation) String() string {
@@ -59,7 +75,7 @@ func (bs *BaseStation) String() string {
 	if len(bs.Operators) != 0 {
 		mcc = bs.Operators[0].Mcc
 		mnc = bs.Operators[0].Mnc
-		operator = bs.Operators[0].Name
+		operator = string(bs.Operators[0].Name)
 	}
 	return fmt.Sprintf("BaseStation{mcc:%d, mnc:%d, operator:%s, coords: (%f, %f)", mcc, mnc, operator, bs.Coordinates.Point.X(), bs.Coordinates.Point.Y())
 }

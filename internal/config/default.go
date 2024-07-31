@@ -15,7 +15,7 @@ var defaultConfig = map[string]interface{}{
 	"jwt.secret":      "secret-key",
 	"jwt.sessionTime": "864000s",
 
-	"db.dataSourceName":   "postgres://postgres:stcspb@172.16.48.2/observer?sslmode=disable",
+	"db.dataSourceName":   "postgres://postgres:stcspb@localhost/observer?sslmode=disable",
 	"db.logLevel":         1,
 	"db.migrate.enable":   false,
 	"db.migrate.dir":      "",

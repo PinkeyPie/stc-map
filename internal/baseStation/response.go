@@ -2,20 +2,29 @@ package baseStation
 
 import (
 	cluster "github.com/aliakseiz/gocluster"
+	"github.com/gofrs/uuid"
 	"simpleServer/internal/baseStation/model"
 )
 
 type PointInfo struct {
-	Operator string  `json:"operator"`
-	Mcc      int16   `json:"mcc"`
-	Mnc      int16   `json:"mnc"`
-	Radius   float32 `json:"radius"`
+	Id                  int    `json:"id"`
+	LacTac              int32  `json:"lac_tac"`
+	Cid                 int32  `json:"cid"`
+	Operator            string `json:"operator"`
+	Mcc                 int16  `json:"mcc"`
+	Mnc                 int16  `json:"mnc"`
+	ArfcnNumber         int64  `json:"arfcn_number"`
+	CellularNetworkType string `json:"cellular_network_type"`
+}
+
+type ClusterViewPointInfo struct {
+	ID int `json:"id"`
 }
 
 type Point struct {
-	Type   string    `json:"type"`
-	Coords []float64 `json:"coords"`
-	Info   PointInfo `json:"info"`
+	Type   string               `json:"type"`
+	Coords []float64            `json:"coords"`
+	Info   ClusterViewPointInfo ` json:"info"`
 }
 
 type Cluster struct {
@@ -24,20 +33,30 @@ type Cluster struct {
 	PointCount int       `json:"pointCount"`
 }
 
-func NewBaseStationResponse(bs *model.BaseStation) *Point {
-	point := Point{
-		Type:   "Point",
-		Coords: []float64{bs.Coordinates.X(), bs.Coordinates.Y()},
-		Info: PointInfo{
-			Radius: 1,
-		},
-	}
-	if len(bs.Operators) != 0 {
-		point.Info.Mcc = bs.Operators[0].Mcc
-		point.Info.Mnc = bs.Operators[0].Mnc
-		point.Info.Operator = bs.Operators[0].Name
-	}
+type BsIdResponse struct {
+	Id uuid.UUID `json:"id"`
+}
 
+func NewBaseStationResponse(bs *model.BaseStation) *PointInfo {
+	point := PointInfo{
+		Id:                  bs.ID,
+		LacTac:              bs.LacTac,
+		Cid:                 bs.Cid,
+		Operator:            bs.Operators[0].Name,
+		Mcc:                 bs.Operators[0].Mcc,
+		Mnc:                 bs.Operators[0].Mnc,
+		ArfcnNumber:         0,
+		CellularNetworkType: "4G or something",
+	}
+	//if len(bs.Operators) != 0 {
+	//	point.Info.Mcc = bs.Operators[0].Mcc
+	//	point.Info.Mnc = bs.Operators[0].Mnc
+	//	point.Info.Operator = bs.Operators[0].Name
+	//}
+	//if len(bs.Arfcn) != 0 {
+	//	point.Info.ArfcnNumber = bs.Arfcn[0].ArfcnNumber
+	//	point.Info.CellularNetworkType = bs.Arfcn[0].CellularNetworkTypes[0].Type
+	//}
 	return &point
 }
 
@@ -49,7 +68,9 @@ func NewClusterResponse(points []cluster.Point) []interface{} {
 			point := Point{
 				Type:   "point",
 				Coords: []float64{points[i].Y, points[i].X},
-				Info:   PointInfo{Radius: 1},
+				Info: ClusterViewPointInfo{
+					ID: points[i].ID + 1,
+				},
 			}
 			data = append(data, point)
 		} else {
@@ -60,6 +81,5 @@ func NewClusterResponse(points []cluster.Point) []interface{} {
 			})
 		}
 	}
-
 	return data
 }
