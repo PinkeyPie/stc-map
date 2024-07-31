@@ -71,12 +71,14 @@ func NewClusterResponse(points []cluster.Point) []interface{} {
 				Info: ClusterViewPointInfo{
 					ID: points[i].ID + 1,
 				},
+				Coords: []float64{points[i].X, points[i].Y},
+				Info:   PointInfo{Radius: 1},
 			}
 			data = append(data, point)
 		} else {
 			data = append(data, Cluster{
 				Type:       "cluster",
-				Coords:     []float64{points[i].Y, points[i].X},
+				Coords:     []float64{points[i].X, points[i].Y},
 				PointCount: points[i].NumPoints,
 			})
 		}
