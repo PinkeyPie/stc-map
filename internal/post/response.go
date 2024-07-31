@@ -21,6 +21,11 @@ type TimeNode struct {
 	IsTime    bool      `json:"isTime"`
 }
 
+type Waypoint struct {
+	Coordinates []float64 `json:"coordinates"`
+	Timestamp   int       `json:"timestamp"`
+}
+
 func (node TimeNode) GetMapNode() map[string]interface{} {
 	return map[string]interface{}{
 		"name":      node.Name,
@@ -145,4 +150,20 @@ func NewPostDateResponse(postsDb []model.Post) map[string]interface{} {
 	detourQueue.JsonDetour()
 
 	return postData
+}
+
+func NewPostPathResponse(post *model.Post) map[string]interface{} {
+	path := make([]interface{}, 0)
+	timestampStart := 1554772579000
+	for i := range post.Coordinates {
+		path = append(path, Waypoint{
+			Coordinates: []float64{post.Coordinates[i].Coordinates.X(), post.Coordinates[i].Coordinates.Y()},
+			Timestamp:   timestampStart + i*10,
+		})
+	}
+
+	result := make(map[string]interface{})
+	result["waypoints"] = path
+
+	return result
 }

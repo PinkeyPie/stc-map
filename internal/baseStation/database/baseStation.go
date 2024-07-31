@@ -60,7 +60,7 @@ func createCluster(baseStations []model.BaseStation) *cluster.Cluster {
 
 	coords := make([]cluster.GeoPoint, len(baseStations))
 	for i := range baseStations {
-		lat, lng := baseStations[i].Coordinates.Point.X(), baseStations[i].Coordinates.Point.Y()
+		lng, lat := baseStations[i].Coordinates.Point.X(), baseStations[i].Coordinates.Point.Y()
 		coords[i] = latLng{
 			Id:  int64(baseStations[i].ID),
 			Lat: lat,
