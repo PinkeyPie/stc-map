@@ -121,10 +121,23 @@ func (bs *baseStationDB) GetBaseStationById(ctx context.Context, id uint64) (*mo
 		return nil, err
 	}
 	if len(baseStations) != 0 {
-		query = `select "Operators".* from "OperatorsBs" inner join "Operators" on "OperatorsBs".operator = "Operators".id where "OperatorsBs".bs = :Bs`
+		query = `select "BsInfo".* from "BsInfo" where "BsInfo".bs = :Bs`
+		var bsInfo []model.BsInfo
+		if err := dbutils.NamedSelect(ctx, bs.dbh, &bsInfo, query, map[string]interface{}{"Bs": id}); err != nil {
+			baseStations[0].BsInfo = bsInfo
+		}
+		query = `select "Operators".* from "Operators" inner join "BsInfo" on "Operators".id = "BsInfo".operator_id where "BsInfo".bs = :Bs`
 		var operators []model.Operator
 		if err := dbutils.NamedSelect(ctx, bs.dbh, &operators, query, map[string]interface{}{"Bs": id}); err != nil {
 			baseStations[0].Operators = operators
+		}
+		query = `select arfcn.id, arfcn_number, uplink, downlink, bandwidth, band, modulation, "CellularNetworkType".type as "CellularNetworkType"
+				 from arfcn inner join "BsInfo" on arfcn.id = "BsInfo".arfcn 
+				 inner join "CellularNetworkType" on arfcn."CellularNetworkType" = "CellularNetworkType".id
+				 where bs = :Bs`
+		var arfcns []model.Arfcn
+		if err := dbutils.NamedSelect(ctx, bs.dbh, &arfcns, query, map[string]interface{}{"Bs": bs}); err != nil {
+			baseStations[0].Arfcn = arfcns
 		}
 		query = `select * from "Region" where id = :RegionId limit 1`
 		var regions []model.Region
@@ -143,8 +156,7 @@ func (bs *baseStationDB) GetBaseStationById(ctx context.Context, id uint64) (*mo
 func (bs *baseStationDB) Fetch(ctx context.Context) ([]model.BaseStation, error) {
 	logger := logging.FromContext(ctx)
 	logger.Debugw("base stations fetch all")
-	query := `select elevation_angle, id, lac_tac, cid, sector_number, azimuth, height, power, using_start, using_stop, 
-       		  address, st_asewkb(coordinates) as coordinates, region, comment from "BaseStations"`
+	query := `select id, address, st_asewkb(coordinates) as coordinates, region, comment from "BaseStations"`
 
 	var baseStations []model.BaseStation
 	if err := dbutils.Select(ctx, bs.dbh, &baseStations, query); err != nil {

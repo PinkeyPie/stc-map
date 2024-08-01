@@ -10,22 +10,15 @@ import (
 )
 
 type BaseStation struct {
-	ID             uint64     `db:"id"`
-	ElevationAngle int16      `db:"elevation_angle"`
-	LacTac         int32      `db:"lac_tac"`
-	Cid            int32      `db:"cid"`
-	SectorNumber   int16      `db:"sector_number"`
-	Azimuth        int16      `db:"azimuth"`
-	Height         float32    `db:"height"`
-	Power          int16      `db:"power"`
-	UsingStart     time.Time  `db:"using_start"`
-	UsingStop      *time.Time `db:"using_stop"`
-	Address        string     `db:"address"`
-	Coordinates    ewkb.Point `db:"coordinates"`
-	RegionId       uuid.UUID  `db:"region"`
-	Comment        *string    `db:"comment"`
-	Operators      []Operator
-	Region         Region
+	ID          uint64     `db:"id"`
+	Address     string     `db:"address"`
+	Coordinates ewkb.Point `db:"coordinates"`
+	RegionId    uuid.UUID  `db:"region"`
+	Comment     *string    `db:"comment"`
+	BsInfo      []BsInfo
+	Operators   []Operator
+	Arfcn       []Arfcn
+	Region      Region
 }
 
 type Region struct {
@@ -41,9 +34,36 @@ type Operator struct {
 	BaseStations []BaseStation
 }
 
-type OperatorBs struct {
-	operator uuid.UUID `db:"operator"`
-	bs       uint64    `db:"bs"`
+type Arfcn struct {
+	ID                  uuid.UUID `db:"id"`
+	ArfcnNumber         int64     `db:"arfcn_number"`
+	Uplink              float64   `db:"uplink"`
+	Downlink            float64   `db:"downlink"`
+	Bandwidth           float64   `db:"bandwidth"`
+	Band                string    `db:"band"`
+	Modulation          uuid.UUID `db:"modulation"`
+	CellularNetworkType string
+}
+
+type CellularNetworkType struct {
+	ID   uuid.UUID `db:"id"`
+	Type string    `db:"type"`
+}
+
+type BsInfo struct {
+	Arfcn          uuid.UUID  `db:"arfcn"`
+	Bs             uint64     `db:"bs"`
+	OperatorId     uuid.UUID  `db:"operator_id"`
+	Cid            int32      `db:"cid"`
+	LacTac         int32      `db:"lac_tac"`
+	ElevationAngle int16      `db:"elevation_angle"`
+	SectorNumber   int16      `db:"sector_number"`
+	Azimuth        int16      `db:"azimuth"`
+	Height         float32    `db:"height"`
+	Power          int16      `db:"power"`
+	UsingStart     time.Time  `db:"using_start"`
+	UsingStop      *time.Time `db:"using_stop"`
+	Comment        string     `db:"comment"`
 }
 
 type Waypoint struct {
