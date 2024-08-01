@@ -30,7 +30,7 @@ type baseStationDB struct {
 type latLng struct {
 	Id  int64   `json:"id"`
 	Lat float64 `json:"lat"`
-	Lng float64 `json:"Lng"`
+	Lng float64 `json:"lng"`
 }
 
 func (tp latLng) GetCoordinates() *cluster.GeoCoordinates {
@@ -68,7 +68,7 @@ func createCluster(baseStations []model.BaseStation) *cluster.Cluster {
 		}
 	}
 
-	c, err := cluster.New(coords, cluster.WithPointSize(32), cluster.WithPointSize(64))
+	c, err := cluster.New(coords, cluster.WithinZoom(0, 15))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -115,17 +115,29 @@ func (bs *baseStationDB) Update(ctx context.Context, id uint64, station *model.B
 func (bs *baseStationDB) GetBaseStationById(ctx context.Context, id uint64) (*model.BaseStation, error) {
 	logger := logging.FromContext(ctx)
 	logger.Debugw("get base station by id", id)
-	query := `select elevation_angle, id, lac_tac, cid, sector_number, azimuth, height, power, using_start, using_stop, 
-       		  address, st_asewkb(coordinates) as coordinates, region, comment from "BaseStations" where id = :Id limit 1`
+	query := `select * from "BaseStations" where id = :Id limit 1`
 	var baseStations []model.BaseStation
 	if err := dbutils.NamedSelect(ctx, bs.dbh, &baseStations, query, map[string]interface{}{"Id": id}); err != nil {
 		return nil, err
 	}
 	if len(baseStations) != 0 {
-		query = `select "Operators".* from "OperatorsBs" inner join "Operators" on "OperatorsBs".operator = "Operators".id where "OperatorsBs".bs = :Bs`
+		query = `select "BsInfo".* from "BsInfo" where "BsInfo".bs = :Bs`
+		var bsInfo []model.BsInfo
+		if err := dbutils.NamedSelect(ctx, bs.dbh, &bsInfo, query, map[string]interface{}{"Bs": id}); err != nil {
+			baseStations[0].BsInfo = bsInfo
+		}
+		query = `select "Operators".* from "Operators" inner join "BsInfo" on "Operators".id = "BsInfo".operator_id where "BsInfo".bs = :Bs`
 		var operators []model.Operator
 		if err := dbutils.NamedSelect(ctx, bs.dbh, &operators, query, map[string]interface{}{"Bs": id}); err == nil {
 			baseStations[0].Operators = operators
+		}
+		query = `select arfcn.id, arfcn_number, uplink, downlink, bandwidth, band, modulation, "CellularNetworkType".type as "CellularNetworkType"
+				 from arfcn inner join "BsInfo" on arfcn.id = "BsInfo".arfcn 
+				 inner join "CellularNetworkType" on arfcn."CellularNetworkType" = "CellularNetworkType".id
+				 where bs = :Bs`
+		var arfcns []model.Arfcn
+		if err := dbutils.NamedSelect(ctx, bs.dbh, &arfcns, query, map[string]interface{}{"Bs": bs}); err != nil {
+			baseStations[0].Arfcn = arfcns
 		}
 		query = `select * from "Region" where id = :RegionId limit 1`
 		var regions []model.Region
@@ -134,18 +146,6 @@ func (bs *baseStationDB) GetBaseStationById(ctx context.Context, id uint64) (*mo
 				baseStations[0].Region = regions[0]
 			}
 		}
-		// Todo: Net dannih blya ) to load additional data from db (tablitsa svyazi empty);
-		//query = `select "arfcn".arfcn_number, "CellularNetworkType".type from "BsArfcns"
-		//			inner join "arfcn" on "BsArfcns".arfcn = arfcn.id
-		//			inner join "CellularNetworkType" on arfcn."CellularNetworkType" = "CellularNetworkType".id
-		//			inner join public.modulation m on arfcn.modulation = m.id where bs = 1
-		//		`
-		//var arfcns []model.Arfcn
-		//if err := dbutils.NamedSelect(ctx, bs.dbh, &arfcns, query, map[string]interface{}{"Id": id}); err == nil {
-		//	if len(arfcns) != 0 {
-		//		baseStations[0].Arfcn = arfcns
-		//	}
-		//}
 
 		return &baseStations[0], nil
 	}
@@ -156,8 +156,7 @@ func (bs *baseStationDB) GetBaseStationById(ctx context.Context, id uint64) (*mo
 func (bs *baseStationDB) Fetch(ctx context.Context) ([]model.BaseStation, error) {
 	logger := logging.FromContext(ctx)
 	logger.Debugw("base stations fetch all")
-	query := `select elevation_angle, id, lac_tac, cid, sector_number, azimuth, height, power, using_start, using_stop, 
-       		  address, st_asewkb(coordinates) as coordinates, region, comment from "BaseStations"`
+	query := `select id, address, st_asewkb(coordinates) as coordinates, region, comment from "BaseStations"`
 
 	var baseStations []model.BaseStation
 	if err := dbutils.Select(ctx, bs.dbh, &baseStations, query); err != nil {
@@ -182,10 +181,17 @@ func (bs *baseStationDB) GetClusters(ctx context.Context, n float64, w float64, 
 		}
 	}
 
-	nw := latLng{Lat: n, Lng: w}
-	se := latLng{Lat: s, Lng: e}
-
-	points, err := bs.clusterProvider.GetClusters(nw, se, int(zoom), -1)
+	var points []cluster.Point
+	if zoom >= 15 {
+		query := `select id, st_x(coordinates) as X, st_y(coordinates) as Y, 1 as NumPoints from "BaseStations" where st_x(coordinates) > :w and st_x(coordinates) < :e and st_y(coordinates) > :s and st_y(coordinates) < :n`
+		if err = dbutils.NamedSelect(ctx, bs.dbh, &points, query, map[string]interface{}{"n": n, "w": w, "s": s, "e": e}); err != nil {
+			return nil, err
+		}
+	} else {
+		nw := latLng{Lat: n, Lng: w}
+		se := latLng{Lat: s, Lng: e}
+		points, _ = bs.clusterProvider.GetClusters(nw, se, int(zoom), -1)
+	}
 	zoomInfo = &ZoomInfo{
 		Zoom: int(zoom),
 		NW:   []float64{n, w},
