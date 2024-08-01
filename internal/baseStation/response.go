@@ -66,13 +66,11 @@ func NewClusterResponse(points []cluster.Point) []interface{} {
 	for i := range points {
 		if points[i].NumPoints == 1 {
 			point := Point{
-				Type:   "point",
-				Coords: []float64{points[i].Y, points[i].X},
+				Type: "point",
 				Info: ClusterViewPointInfo{
 					ID: points[i].ID + 1,
 				},
 				Coords: []float64{points[i].X, points[i].Y},
-				Info:   PointInfo{Radius: 1},
 			}
 			data = append(data, point)
 		} else {
