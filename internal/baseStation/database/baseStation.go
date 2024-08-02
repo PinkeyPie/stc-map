@@ -15,9 +15,15 @@ import (
 
 type BaseStationDB interface {
 	Add(ctx context.Context, baseStation *model.BaseStation) error
+
 	Update(ctx context.Context, id uint64, baseStation *model.BaseStation) error
+
 	GetBaseStationById(ctx context.Context, id uint64) (*model.BaseStation, error)
+
 	GetClusters(ctx context.Context, n float64, w float64, s float64, e float64, zoom float32) ([]cluster.Point, error)
+
+	GetBaseStationByCoords(ctx context.Context, lat float64, lng float64) (*model.BaseStation, error)
+
 	Fetch(ctx context.Context) ([]model.BaseStation, error)
 }
 
@@ -115,7 +121,7 @@ func (bs *baseStationDB) Update(ctx context.Context, id uint64, station *model.B
 func (bs *baseStationDB) GetBaseStationById(ctx context.Context, id uint64) (*model.BaseStation, error) {
 	logger := logging.FromContext(ctx)
 	logger.Debugw("get base station by id", id)
-	query := `select * from "BaseStations" where id = :Id limit 1`
+	query := `select address, st_asewkb(coordinates) as coordinates, region, comment, id from "BaseStations" where id = :Id limit 1`
 	var baseStations []model.BaseStation
 	if err := dbutils.NamedSelect(ctx, bs.dbh, &baseStations, query, map[string]interface{}{"Id": id}); err != nil {
 		return nil, err
@@ -123,7 +129,7 @@ func (bs *baseStationDB) GetBaseStationById(ctx context.Context, id uint64) (*mo
 	if len(baseStations) != 0 {
 		query = `select "BsInfo".* from "BsInfo" where "BsInfo".bs = :Bs`
 		var bsInfo []model.BsInfo
-		if err := dbutils.NamedSelect(ctx, bs.dbh, &bsInfo, query, map[string]interface{}{"Bs": id}); err != nil {
+		if err := dbutils.NamedSelect(ctx, bs.dbh, &bsInfo, query, map[string]interface{}{"Bs": id}); err == nil {
 			baseStations[0].BsInfo = bsInfo
 		}
 		query = `select "Operators".* from "Operators" inner join "BsInfo" on "Operators".id = "BsInfo".operator_id where "BsInfo".bs = :Bs`
@@ -136,7 +142,7 @@ func (bs *baseStationDB) GetBaseStationById(ctx context.Context, id uint64) (*mo
 				 inner join "CellularNetworkType" on arfcn."CellularNetworkType" = "CellularNetworkType".id
 				 where bs = :Bs`
 		var arfcns []model.Arfcn
-		if err := dbutils.NamedSelect(ctx, bs.dbh, &arfcns, query, map[string]interface{}{"Bs": bs}); err != nil {
+		if err := dbutils.NamedSelect(ctx, bs.dbh, &arfcns, query, map[string]interface{}{"Bs": id}); err == nil {
 			baseStations[0].Arfcn = arfcns
 		}
 		query = `select * from "Region" where id = :RegionId limit 1`
@@ -148,6 +154,58 @@ func (bs *baseStationDB) GetBaseStationById(ctx context.Context, id uint64) (*mo
 		}
 
 		return &baseStations[0], nil
+	}
+
+	return nil, nil
+}
+
+func (bs *baseStationDB) GetBaseStationByCoords(ctx context.Context, lat, lng float64) (*model.BaseStation, error) {
+	logger := logging.FromContext(ctx)
+	logger.Debugw("Get base station by Coordinates", lat)
+	query := `select address, coordinates, region, comment, id
+			  	from (
+					select address,
+             			st_asewkb(coordinates) as                                                                       coordinates,
+             			region,
+             			comment,
+             			id,
+             			st_distance(coordinates, st_setsrid(st_makepoint(:Lng, :Lat), 4326)) distance
+      				from "BaseStations"
+      				order by distance
+      				limit 1)
+				as inner_query;`
+	var baseStation []model.BaseStation
+	if err := dbutils.NamedSelect(ctx, bs.dbh, &baseStation, query, map[string]interface{}{"Lat": lat, "Lng": lng}); err != nil {
+		return nil, err
+	}
+	if len(baseStation) != 0 {
+		query = `select "BsInfo".* from "BsInfo" where "BsInfo".bs = :Bs`
+		var bsInfo []model.BsInfo
+		if err := dbutils.NamedSelect(ctx, bs.dbh, &bsInfo, query, map[string]interface{}{"Bs": baseStation[0].ID}); err == nil {
+			baseStation[0].BsInfo = bsInfo
+		}
+		query = `select "Operators".* from "Operators" inner join "BsInfo" on "Operators".id = "BsInfo".operator_id where "BsInfo".bs = :Bs`
+		var operators []model.Operator
+		if err := dbutils.NamedSelect(ctx, bs.dbh, &operators, query, map[string]interface{}{"Bs": baseStation[0].ID}); err == nil {
+			baseStation[0].Operators = operators
+		}
+		query = `select arfcn.id, arfcn_number, uplink, downlink, bandwidth, band, modulation, "CellularNetworkType".type as "CellularNetworkType"
+				 from arfcn inner join "BsInfo" on arfcn.id = "BsInfo".arfcn 
+				 inner join "CellularNetworkType" on arfcn."CellularNetworkType" = "CellularNetworkType".id
+				 where bs = :Bs`
+		var arfcns []model.Arfcn
+		if err := dbutils.NamedSelect(ctx, bs.dbh, &arfcns, query, map[string]interface{}{"Bs": baseStation[0].ID}); err == nil {
+			baseStation[0].Arfcn = arfcns
+		}
+		query = `select * from "Region" where id = :RegionId limit 1`
+		var regions []model.Region
+		if err := dbutils.NamedSelect(ctx, bs.dbh, &regions, query, map[string]interface{}{"RegionId": baseStation[0].RegionId}); err == nil {
+			if len(regions) != 0 {
+				baseStation[0].Region = regions[0]
+			}
+		}
+
+		return &baseStation[0], nil
 	}
 
 	return nil, nil

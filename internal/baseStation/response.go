@@ -7,7 +7,7 @@ import (
 )
 
 type PointInfo struct {
-	Id                  int    `json:"id"`
+	Id                  uint64 `json:"id"`
 	LacTac              int32  `json:"lac_tac"`
 	Cid                 int32  `json:"cid"`
 	Operator            string `json:"operator"`
@@ -40,8 +40,8 @@ type BsIdResponse struct {
 func NewBaseStationResponse(bs *model.BaseStation) *PointInfo {
 	point := PointInfo{
 		Id:                  bs.ID,
-		LacTac:              bs.LacTac,
-		Cid:                 bs.Cid,
+		LacTac:              bs.BsInfo[0].LacTac,
+		Cid:                 bs.BsInfo[0].Cid,
 		Operator:            bs.Operators[0].Name,
 		Mcc:                 bs.Operators[0].Mcc,
 		Mnc:                 bs.Operators[0].Mnc,

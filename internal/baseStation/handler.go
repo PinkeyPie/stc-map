@@ -79,6 +79,32 @@ func (h *Handler) GetClusters(c *gin.Context) {
 	})
 }
 
+func (h *Handler) GetBaseStationByCoords(c *gin.Context) {
+	handler.HandleRequest(c, func(c *gin.Context) *handler.Response {
+		logger := logging.FromContext(c)
+		type RequestUri struct {
+			Lat float64 `uri:"lng"`
+			Lng float64 `uri:"lat"`
+		}
+		var uri RequestUri
+		if err := c.ShouldBindUri(&uri); err != nil {
+			logger.Errorf("baseStations.GetBaseStationByCoords failed to bind", "err", err)
+			var details []*validate.ValidationErrDetail
+			if vErrs, ok := err.(validator.ValidationErrors); ok {
+				details = validate.ValidationErrorDetails(&uri, "uri", vErrs)
+			}
+			return handler.NewErrorResponse(http.StatusBadRequest, handler.InvalidUriValue, "invalid lat, lng in uri", details)
+		}
+
+		bs, err := h.baseStationDB.GetBaseStationByCoords(c.Request.Context(), uri.Lat, uri.Lng)
+		if err != nil {
+			logger.Errorf("baseStationDB.GetBaseStationByCoords failed to find bs", "err", err)
+			return handler.NewInternalErrorResponse(fmt.Errorf("Can't get baseStation"))
+		}
+		return handler.NewSuccessResponse(http.StatusOK, NewBaseStationResponse(bs))
+	})
+}
+
 func (h *Handler) GetBaseStationById(c *gin.Context) {
 	handler.HandleRequest(c, func(c *gin.Context) *handler.Response {
 		logger := logging.FromContext(c)
@@ -116,5 +142,6 @@ func RouteV1(cfg *config.Config, h *Handler, r *gin.Engine) {
 	{
 		baseStationV1.GET("/nw/:n/:w/se/:s/:e/zoom/:zoom", h.GetClusters)
 		baseStationV1.GET("/id/:id", h.GetBaseStationById)
+		baseStationV1.GET("/lat/:lat/lng/:lng", h.GetBaseStationByCoords)
 	}
 }

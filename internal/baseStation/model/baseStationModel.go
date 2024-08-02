@@ -42,7 +42,7 @@ type Arfcn struct {
 	Bandwidth           float64   `db:"bandwidth"`
 	Band                string    `db:"band"`
 	Modulation          uuid.UUID `db:"modulation"`
-	CellularNetworkType string
+	CellularNetworkType string    `db:"CellularNetworkType"`
 }
 
 type CellularNetworkType struct {
@@ -63,7 +63,7 @@ type BsInfo struct {
 	Power          int16      `db:"power"`
 	UsingStart     time.Time  `db:"using_start"`
 	UsingStop      *time.Time `db:"using_stop"`
-	Comment        string     `db:"comment"`
+	Comment        *string    `db:"comment"`
 }
 
 type Waypoint struct {

@@ -74,6 +74,33 @@ func (h *Handler) GetHeatMapPointsByBsId(c *gin.Context) {
 	})
 }
 
+func (h *Handler) GetHeatMapPointsByCoords(c *gin.Context) {
+	handler.HandleRequest(c, func(c *gin.Context) *handler.Response {
+		logger := logging.FromContext(c)
+		type RequestUri struct {
+			Lat float64 `uri:"lat"`
+			Lng float64 `uri:"lng"`
+		}
+		var uri RequestUri
+		if err := c.ShouldBindUri(&uri); err != nil {
+			logger.Errorf("heatmap uri parse error: %v", err)
+			var details []*validate.ValidationErrDetail
+			if vErrs, ok := err.(validator.ValidationErrors); ok {
+				details = validate.ValidationErrorDetails(&uri, "uri", vErrs)
+			}
+			return handler.NewErrorResponse(http.StatusBadRequest, handler.InvalidUriValue, "invalid bs id", details)
+		}
+		var points []model.HeatmapPoint
+		var err error
+		if points, err = h.heatmapDB.GetAllHeatmapPointsByCoordsDB(c, uri.Lat, uri.Lng); err != nil {
+			logger.Errorf("GetHeatmapPointsByCoordsDB err: %v", err)
+			return handler.NewInternalErrorResponse(err)
+		}
+
+		return handler.NewSuccessResponse(http.StatusOK, NewHeatmapPointsInBboxResponse(points))
+	})
+}
+
 func RouteV1(cfg *config.Config, h *Handler, r *gin.Engine) {
 	v1 := r.Group("v1/api")
 	v1.Use(middleware.CorsMiddleware(), middleware.RequestIDMiddleware(), middleware.TimeoutMiddleware(cfg.ServerConfig.WriteTimeout))
@@ -82,7 +109,9 @@ func RouteV1(cfg *config.Config, h *Handler, r *gin.Engine) {
 	heatmapV1.Use()
 	{
 		heatmapV1.GET("/nw/:n/:w/se/:s/:e", h.GetHeatMapPointsInBbox)
-		heatmapV1.GET("/id/:id", h.GetHeatMapPointsByBsId)
+		heatmapV1.GET("/lat/:lat/lng/:lng", h.GetHeatMapPointsByCoords)
+		// Not work for now but maybe need later
+		//heatmapV1.GET("/id/:id", h.GetHeatMapPointsByBsId)
 	}
 
 }
