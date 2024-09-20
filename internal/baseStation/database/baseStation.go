@@ -20,9 +20,15 @@ type BaseStationDB interface {
 
 	GetBaseStationById(ctx context.Context, id uint64) (*model.BaseStation, error)
 
+	GetBsInfoByIdDB(ctx context.Context, id uint64) (*[]model.BsInfo, error)
+
 	GetClusters(ctx context.Context, n float64, w float64, s float64, e float64, zoom float32) ([]cluster.Point, error)
 
 	GetBaseStationByCoords(ctx context.Context, lat float64, lng float64) (*model.BaseStation, error)
+
+	GetOperatorsListByIdDB(ctx context.Context, id uint64) ([]string, error)
+
+	GetAllOperators(ctx context.Context) ([]string, error)
 
 	Fetch(ctx context.Context) ([]model.BaseStation, error)
 }
@@ -127,10 +133,25 @@ func (bs *baseStationDB) GetBaseStationById(ctx context.Context, id uint64) (*mo
 		return nil, err
 	}
 	if len(baseStations) != 0 {
-		query = `select "BsInfo".* from "BsInfo" where "BsInfo".bs = :Bs`
+		query = `select using_start, 
+						lac_tac, 
+						cid, 
+						arfcn, 
+						bs, 
+						operator_id, 
+						elevation_angle, 
+						azimuth, 
+						height, 
+						power, 
+						using_start,
+						using_stop,
+						comment
+				from "BsInfo" where "BsInfo".bs = :Bs`
 		var bsInfo []model.BsInfo
 		if err := dbutils.NamedSelect(ctx, bs.dbh, &bsInfo, query, map[string]interface{}{"Bs": id}); err == nil {
 			baseStations[0].BsInfo = bsInfo
+		} else {
+			logger.Debugw(err.Error())
 		}
 		query = `select "Operators".* from "Operators" inner join "BsInfo" on "Operators".id = "BsInfo".operator_id where "BsInfo".bs = :Bs`
 		var operators []model.Operator
@@ -159,17 +180,30 @@ func (bs *baseStationDB) GetBaseStationById(ctx context.Context, id uint64) (*mo
 	return nil, nil
 }
 
+func (bs *baseStationDB) GetBsInfoByIdDB(ctx context.Context, id uint64) (*[]model.BsInfo, error) {
+	logger := logging.FromContext(ctx)
+	logger.Debugw("Get bs info by id", id)
+	query := `select using_start from "BsInfo" where bs = :Id`
+	var bsInfo []model.BsInfo
+
+	if err := dbutils.NamedSelect(ctx, bs.dbh, &bsInfo, query, map[string]interface{}{"Id": id}); err != nil {
+		return nil, err
+	}
+
+	return &bsInfo, nil
+}
+
 func (bs *baseStationDB) GetBaseStationByCoords(ctx context.Context, lat, lng float64) (*model.BaseStation, error) {
 	logger := logging.FromContext(ctx)
 	logger.Debugw("Get base station by Coordinates", lat)
-	query := `select address, coordinates, region, comment, id
+	query := `select address, coordinates, region, comment,id
 			  	from (
 					select address,
-             			st_asewkb(coordinates) as                                                                       coordinates,
+             			st_asewkb(coordinates) as coordinates,
              			region,
              			comment,
              			id,
-             			st_distance(coordinates, st_setsrid(st_makepoint(:Lng, :Lat), 4326)) distance
+             			st_distance(st_setsrid(coordinates, 4326), st_setsrid(st_makepoint(:Lng, :Lat), 4326)) distance
       				from "BaseStations"
       				order by distance
       				limit 1)
@@ -179,12 +213,25 @@ func (bs *baseStationDB) GetBaseStationByCoords(ctx context.Context, lat, lng fl
 		return nil, err
 	}
 	if len(baseStation) != 0 {
-		query = `select "BsInfo".* from "BsInfo" where "BsInfo".bs = :Bs`
+		query = `select using_start, 
+						lac_tac, 
+						cid, 
+						arfcn, 
+						bs, 
+						operator_id, 
+						elevation_angle, 
+						azimuth, 
+						height, 
+						power, 
+						using_start 
+				from "BsInfo" where "BsInfo".bs = :Bs`
 		var bsInfo []model.BsInfo
 		if err := dbutils.NamedSelect(ctx, bs.dbh, &bsInfo, query, map[string]interface{}{"Bs": baseStation[0].ID}); err == nil {
 			baseStation[0].BsInfo = bsInfo
 		}
-		query = `select "Operators".* from "Operators" inner join "BsInfo" on "Operators".id = "BsInfo".operator_id where "BsInfo".bs = :Bs`
+		query = `select "Operators".* from "Operators" 
+					inner join "BsInfo" on "Operators".id = "BsInfo".operator_id 
+					where "BsInfo".bs = :Bs`
 		var operators []model.Operator
 		if err := dbutils.NamedSelect(ctx, bs.dbh, &operators, query, map[string]interface{}{"Bs": baseStation[0].ID}); err == nil {
 			baseStation[0].Operators = operators
@@ -209,6 +256,22 @@ func (bs *baseStationDB) GetBaseStationByCoords(ctx context.Context, lat, lng fl
 	}
 
 	return nil, nil
+}
+
+func (bs *baseStationDB) GetOperatorsListByIdDB(ctx context.Context, id uint64) ([]string, error) {
+	logger := logging.FromContext(ctx)
+	logger.Debugw("Get operators list for bs with id: ", id)
+	query := `
+	select name from "BaseStations"
+		inner join public."BsInfo" BI on "BaseStations".id = BI.bs	
+		inner join public."Operators" on BI.operator_id = "Operators".id
+		where "BaseStations".id = :Id 
+		group by "Operators".name;`
+	var operators []string
+	if err := dbutils.NamedSelect(ctx, bs.dbh, &operators, query, map[string]interface{}{"Id": id}); err != nil {
+		return nil, err
+	}
+	return operators, nil
 }
 
 func (bs *baseStationDB) Fetch(ctx context.Context) ([]model.BaseStation, error) {
@@ -338,6 +401,17 @@ func (bs *baseStationDB) clusterSaveInCache(ctx context.Context, points []cluste
 		return err
 	}
 	return nil
+}
+
+func (bs *baseStationDB) GetAllOperators(ctx context.Context) ([]string, error) {
+	logger := logging.FromContext(ctx)
+	logger.Debugw("start searching for operators in db")
+	query := `select name from "Operators" group by name`
+	var operators []string
+	if err := dbutils.Select(ctx, bs.dbh, &operators, query); err != nil {
+		return nil, err
+	}
+	return operators, nil
 }
 
 const (

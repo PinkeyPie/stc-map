@@ -152,7 +152,7 @@ func NewPostDateResponse(postsDb []model.Post) map[string]interface{} {
 	return postData
 }
 
-func NewPostPathResponse(post *model.Post) map[string]interface{} {
+func NewPostPathResponse(post *model.Post) []map[string]interface{} {
 	path := make([]interface{}, 0)
 	timestampStart := 1554772579000
 	for i := range post.Coordinates {
@@ -164,6 +164,8 @@ func NewPostPathResponse(post *model.Post) map[string]interface{} {
 
 	result := make(map[string]interface{})
 	result["waypoints"] = path
+	trueResult := make([]map[string]interface{}, 0)
+	trueResult = append(trueResult, result)
 
-	return result
+	return trueResult
 }

@@ -133,6 +133,73 @@ func (h *Handler) GetBaseStationById(c *gin.Context) {
 	})
 }
 
+func (h *Handler) GetAllOperators(c *gin.Context) {
+	handler.HandleRequest(c, func(c *gin.Context) *handler.Response {
+		logger := logging.FromContext(c)
+		operators, err := h.baseStationDB.GetAllOperators(c.Request.Context())
+		if err != nil || operators == nil {
+			logger.Errorf("baseStations.GetAllOperators failed to get operators from db", "err", err)
+			return handler.NewInternalErrorResponse(fmt.Errorf("Can't get operators list"))
+		}
+		return handler.NewSuccessResponse(http.StatusOK, NewOperatorsResponse(operators))
+	})
+}
+
+func (h *Handler) GetBsInfoById(c *gin.Context) {
+	handler.HandleRequest(c, func(c *gin.Context) *handler.Response {
+		logger := logging.FromContext(c)
+		type RequestUri struct {
+			Id uint64 `uri:"id"`
+		}
+
+		var uri RequestUri
+		if err := c.ShouldBindUri(&uri); err != nil {
+			logger.Errorf("baseStations.GetBaseStationById failed to bind", "err", err)
+			var details []*validate.ValidationErrDetail
+			if vErrs, ok := err.(validator.ValidationErrors); ok {
+				details = validate.ValidationErrorDetails(&uri, "uri", vErrs)
+			}
+			return handler.NewErrorResponse(http.StatusBadRequest, handler.InvalidUriValue, "invalid id", details)
+		}
+		logger.Debugw("Id = %d", uri.Id)
+
+		bsInfos, err := h.baseStationDB.GetBsInfoByIdDB(c.Request.Context(), uri.Id)
+		if err != nil || bsInfos == nil {
+			logger.Errorf("baseStations.GetAllOperators failed to get operators from db", "err", err)
+			return handler.NewInternalErrorResponse(fmt.Errorf("Can't get operators list"))
+		}
+		return handler.NewSuccessResponse(http.StatusOK, NewBsInfoResponse(*bsInfos))
+	})
+}
+
+func (h *Handler) GetOperatorsListByBsId(c *gin.Context) {
+	handler.HandleRequest(c, func(c *gin.Context) *handler.Response {
+		logger := logging.FromContext(c)
+		type RequestUri struct {
+			Id uint64 `uri:"id"`
+		}
+
+		var uri RequestUri
+		if err := c.ShouldBindUri(&uri); err != nil {
+			logger.Errorf("baseStations.GetOperatorsListByBsId failed to bind", "err", err)
+			var details []*validate.ValidationErrDetail
+			if vErrs, ok := err.(validator.ValidationErrors); ok {
+				details = validate.ValidationErrorDetails(&uri, "uri", vErrs)
+			}
+			return handler.NewErrorResponse(http.StatusBadRequest, handler.InvalidUriValue, "invalid id", details)
+		}
+		logger.Debugw("Id = %d", uri.Id)
+
+		operators, err := h.baseStationDB.GetOperatorsListByIdDB(c.Request.Context(), uri.Id)
+
+		if err != nil || operators == nil {
+			logger.Errorf("baseStations.GetOperatorsListByBsId failed to cluster", "err", err)
+			return handler.NewInternalErrorResponse(fmt.Errorf("Can't get operators list"))
+		}
+		return handler.NewSuccessResponse(http.StatusOK, NewOperatorsResponse(operators))
+	})
+}
+
 func RouteV1(cfg *config.Config, h *Handler, r *gin.Engine) {
 	v1 := r.Group("v1/api")
 	v1.Use(middleware.CorsMiddleware(), middleware.RequestIDMiddleware(), middleware.TimeoutMiddleware(cfg.ServerConfig.WriteTimeout))
@@ -143,5 +210,8 @@ func RouteV1(cfg *config.Config, h *Handler, r *gin.Engine) {
 		baseStationV1.GET("/nw/:n/:w/se/:s/:e/zoom/:zoom", h.GetClusters)
 		baseStationV1.GET("/id/:id", h.GetBaseStationById)
 		baseStationV1.GET("/lat/:lat/lng/:lng", h.GetBaseStationByCoords)
+		baseStationV1.GET("/operatorsListByBs/:id", h.GetOperatorsListByBsId)
+		baseStationV1.GET("/allOperators", h.GetAllOperators)
+		baseStationV1.GET("/getBsInfoById/id/:id", h.GetBsInfoById)
 	}
 }

@@ -7,14 +7,15 @@ import (
 )
 
 type PointInfo struct {
-	Id                  uint64 `json:"id"`
-	LacTac              int32  `json:"lac_tac"`
-	Cid                 int32  `json:"cid"`
-	Operator            string `json:"operator"`
-	Mcc                 int16  `json:"mcc"`
-	Mnc                 int16  `json:"mnc"`
-	ArfcnNumber         int64  `json:"arfcn_number"`
-	CellularNetworkType string `json:"cellular_network_type"`
+	Id              uint64           `json:"id"`
+	Coordinates     []float64        `json:"coordinates"`
+	BsInfo          []model.BsInfo   `json:"bsInfo"`
+	BsOperatorsInfo []model.Operator `json:"operatorsInfo"`
+	BsArfcns        []model.Arfcn    `json:"bsArfcns"`
+}
+
+type OperatorsList struct {
+	Operators []string `json:"operators"`
 }
 
 type ClusterViewPointInfo struct {
@@ -39,24 +40,23 @@ type BsIdResponse struct {
 
 func NewBaseStationResponse(bs *model.BaseStation) *PointInfo {
 	point := PointInfo{
-		Id:                  bs.ID,
-		LacTac:              bs.BsInfo[0].LacTac,
-		Cid:                 bs.BsInfo[0].Cid,
-		Operator:            bs.Operators[0].Name,
-		Mcc:                 bs.Operators[0].Mcc,
-		Mnc:                 bs.Operators[0].Mnc,
-		ArfcnNumber:         0,
-		CellularNetworkType: "4G or something",
+		Id: bs.ID,
 	}
-	//if len(bs.Operators) != 0 {
-	//	point.Info.Mcc = bs.Operators[0].Mcc
-	//	point.Info.Mnc = bs.Operators[0].Mnc
-	//	point.Info.Operator = bs.Operators[0].Name
-	//}
-	//if len(bs.Arfcn) != 0 {
-	//	point.Info.ArfcnNumber = bs.Arfcn[0].ArfcnNumber
-	//	point.Info.CellularNetworkType = bs.Arfcn[0].CellularNetworkTypes[0].Type
-	//}
+
+	point.Coordinates = []float64{bs.Coordinates.X(), bs.Coordinates.Y()}
+
+	if len(bs.Operators) != 0 {
+		point.BsOperatorsInfo = bs.Operators
+	}
+
+	if len(bs.BsInfo) != 0 {
+		point.BsInfo = bs.BsInfo
+	}
+
+	if len(bs.Arfcn) != 0 {
+		point.BsArfcns = bs.Arfcn
+	}
+
 	return &point
 }
 
@@ -80,6 +80,22 @@ func NewClusterResponse(points []cluster.Point) []interface{} {
 				PointCount: points[i].NumPoints,
 			})
 		}
+	}
+	return data
+}
+
+func NewOperatorsResponse(operators []string) OperatorsList {
+	operatorList := OperatorsList{}
+	if len(operators) != 0 {
+		operatorList.Operators = operators
+	}
+	return operatorList
+}
+
+func NewBsInfoResponse(bsInfo []model.BsInfo) []interface{} {
+	data := make([]interface{}, 0)
+	for i := range bsInfo {
+		data = append(data, bsInfo[i])
 	}
 	return data
 }

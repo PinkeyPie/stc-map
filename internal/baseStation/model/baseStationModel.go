@@ -51,19 +51,21 @@ type CellularNetworkType struct {
 }
 
 type BsInfo struct {
-	Arfcn          uuid.UUID  `db:"arfcn"`
-	Bs             uint64     `db:"bs"`
-	OperatorId     uuid.UUID  `db:"operator_id"`
-	Cid            int32      `db:"cid"`
-	LacTac         int32      `db:"lac_tac"`
-	ElevationAngle int16      `db:"elevation_angle"`
-	SectorNumber   int16      `db:"sector_number"`
-	Azimuth        int16      `db:"azimuth"`
-	Height         float32    `db:"height"`
-	Power          int16      `db:"power"`
-	UsingStart     time.Time  `db:"using_start"`
-	UsingStop      *time.Time `db:"using_stop"`
-	Comment        *string    `db:"comment"`
+	Arfcn                 uuid.UUID  `db:"arfcn"`
+	Bs                    uint64     `db:"bs"`
+	OperatorId            uuid.UUID  `db:"operator_id"`
+	Cid                   int32      `db:"cid"`
+	LacTac                int32      `db:"lac_tac"`
+	ElevationAngle        int16      `db:"elevation_angle"`
+	SectorNumber          int16      `db:"sector_number"`
+	SectorAngle           float32    `db:"sector_angle"`
+	SectorAveragePosition ewkb.Point `db:"sector_average_position"`
+	Azimuth               int16      `db:"azimuth"`
+	Height                float32    `db:"height"`
+	Power                 int16      `db:"power"`
+	UsingStart            *time.Time `db:"using_start"`
+	UsingStop             *time.Time `db:"using_stop"`
+	Comment               *string    `db:"comment"`
 }
 
 type Waypoint struct {

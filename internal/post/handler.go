@@ -78,6 +78,8 @@ func (h *Handler) GetPostPath(c *gin.Context) {
 		if err != nil {
 			return handler.NewInternalErrorResponse(fmt.Errorf("can't find post path values"))
 		}
+		//return handler.NewSuccessResponse(http.StatusOK, NewPostPathResponse(post))
+		c.Header("Content-Type", "application/json")
 		return handler.NewSuccessResponse(http.StatusOK, NewPostPathResponse(post))
 	})
 }
